@@ -6,6 +6,7 @@ pub struct VM {
     pub program: Vec<u8>,
     pub remainder: u32,
     pub equal_flag: bool,
+    heap: Vec<u8>,
 }
 
 impl VM {
@@ -16,6 +17,7 @@ impl VM {
             program: vec![],
             remainder: 0,
             equal_flag: false,
+            heap: vec![],
         }
     }
 
@@ -43,6 +45,7 @@ impl VM {
     }
 
     fn decode_opcode(&mut self) -> Opcode {
+        assert!(self.pc % 4 == 0);  // sanity check
         let opcode = Opcode::from(self.program[self.pc]);
         self.pc += 1;
         opcode
@@ -156,6 +159,12 @@ impl VM {
                 if !self.equal_flag {
                     self.pc = target as usize;
                 }
+            }
+            Opcode::ALOC => {
+                let register = self.next_8_bits() as usize;
+                let bytes = self.registers[register];
+                let new_end = self.heap.len() as i32 + bytes;
+                self.heap.resize(new_end as usize, 0);
             }
             _ => {
                 println!("Unrecognized opcode found! Terminating!");
@@ -304,5 +313,14 @@ mod tests {
         test_vm.equal_flag = false;
         test_vm.run_once();
         assert_eq!(test_vm.pc, 4);
+    }
+
+    #[test]
+    fn test_aloc_opcode() {
+        let mut test_vm = get_test_vm();
+        test_vm.registers[0] = 1024;
+        test_vm.program = vec![Opcode::ALOC.into(), 0, 0, 0];
+        test_vm.run_once();
+        assert_eq!(test_vm.heap.len(), 1024);
     }
 }
