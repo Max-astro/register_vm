@@ -165,6 +165,17 @@ impl VM {
                 let bytes = self.registers[register];
                 let new_end = self.heap.len() as i32 + bytes;
                 self.heap.resize(new_end as usize, 0);
+                self.pc += 2;
+            }
+            Opcode::INC => {
+                let register = self.next_8_bits() as usize;
+                self.registers[register] += 1;
+                self.pc += 2;
+            }
+            Opcode::DEC => {
+                let register = self.next_8_bits() as usize;
+                self.registers[register] -= 1;
+                self.pc += 2;
             }
             _ => {
                 println!("Unrecognized opcode found! Terminating!");
@@ -172,6 +183,11 @@ impl VM {
             }
         }
         true
+    }
+
+    #[allow(dead_code)]
+    fn pc_valid(&self) -> bool {
+        self.pc % 4 == 0
     }
 }
 
@@ -213,6 +229,7 @@ mod tests {
         test_vm.program = vec![Opcode::LOAD.into(), 0, 1, 244]; // Remember, this is how we represent 500 using two u8s in little endian format
         test_vm.run();
         assert_eq!(test_vm.registers[0], 500);
+        assert!(test_vm.pc_valid());
     }
 
     #[test]
@@ -250,9 +267,11 @@ mod tests {
         test_vm.program = vec![Opcode::EQ.into(), 0, 1, 0, Opcode::EQ.into(), 0, 1, 0];
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, true);
+        assert!(test_vm.pc_valid());
         test_vm.registers[1] = 3;
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, false);
+        assert!(test_vm.pc_valid());
     }
 
     #[test]
@@ -263,9 +282,11 @@ mod tests {
         test_vm.program = vec![Opcode::NEQ.into(), 0, 1, 0, Opcode::NEQ.into(), 0, 1, 0];
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, false);
+        assert!(test_vm.pc_valid());
         test_vm.registers[1] = 3;
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, true);
+        assert!(test_vm.pc_valid());
     }
 
     #[test]
@@ -294,12 +315,16 @@ mod tests {
         ];
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, false);
+        assert!(test_vm.pc_valid());
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, true);
+        assert!(test_vm.pc_valid());
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, true);
+        assert!(test_vm.pc_valid());
         test_vm.run_once();
         assert_eq!(test_vm.equal_flag, true);
+        assert!(test_vm.pc_valid());
     }
 
     #[test]
@@ -322,5 +347,6 @@ mod tests {
         test_vm.program = vec![Opcode::ALOC.into(), 0, 0, 0];
         test_vm.run_once();
         assert_eq!(test_vm.heap.len(), 1024);
+        assert!(test_vm.pc_valid());
     }
 }

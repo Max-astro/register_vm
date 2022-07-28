@@ -51,6 +51,9 @@ impl AssemblerInstruction {
                 None => {},
             };
         }
+        while result.len() < 4 {
+            result.push(0);
+        }
         result
     }
 }
