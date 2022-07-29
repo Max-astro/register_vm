@@ -41,49 +41,100 @@ named!(integer_operand <CompleteStr, Token>,
     )
 );
 
-named!(pub instruction_one<CompleteStr, AssemblerInstruction>,
+named!(operand <CompleteStr, Token>,
+    alt!(
+        integer_operand |
+        register        |
+        label_usage
+    )
+);
+
+named!(directive_declaration<CompleteStr, Token>,
     do_parse!(
-        o: opcode_parser >>
-        opt!(multispace) >>
+        tag!(".") >>
+        name: alpha1 >>
         (
-            AssemblerInstruction {
-                opcode: o,
-                operand1:None,
-                operand2:None,
-                operand3:None
-            }
+            Token::Directive{ name: name.to_string()}
         )
     )
 );
 
-named!(pub instruction_two<CompleteStr, AssemblerInstruction>,
-    do_parse!(
-        o: opcode_parser >>
-        r: register >>
-        i: integer_operand >>
-        (
-            AssemblerInstruction {
-                opcode: o,
-                operand1:Some(r),
-                operand2:Some(i),
-                operand3:None
-            }
+named!(directive_combined<CompleteStr, AssemblerInstruction>,
+    ws!(
+        do_parse!(
+            l: opt!(label_declaration) >>
+            name: directive_declaration >>
+            o1: opt!(operand) >>
+            o2: opt!(operand) >>
+            o3: opt!(operand) >>
+            (
+                AssemblerInstruction {
+                    opcode: None,
+                    directive: Some(name),
+                    label: l,
+                    operand1: o1,
+                    operand2: o2,
+                    operand3: o3,
+                }
+            )
         )
     )
 );
 
-named!(pub instruction_three<CompleteStr, AssemblerInstruction>,
+named!(pub directive<CompleteStr, AssemblerInstruction>,
     do_parse!(
+        ins: alt!(
+            directive_combined
+        ) >>
+        (
+            ins
+        )
+    )
+);
+
+// parse a declaration of user-defined label, such as `label1: LOAD $1 100`
+named!(pub label_declaration<CompleteStr, Token>,
+    ws!(
+        do_parse!(
+            name: alphanumeric >>
+            tag!(":") >>
+            opt!(multispace) >>
+            (
+                Token::LabelDeclaration {name: name.to_string()}
+            )
+        )
+    )
+);
+
+// parse a usage of user-defined label, such as `JMP @label1`
+named!(pub label_usage<CompleteStr, Token>,
+    ws!(
+        do_parse!(
+            tag!("@") >>
+            name: alphanumeric >>
+            opt!(multispace) >>
+            (
+                Token::LabelUsage {name: name.to_string()}
+            )
+        )
+    )
+);
+
+named!(instruction_combined<CompleteStr, AssemblerInstruction>,
+    do_parse!(
+        l: opt!(label_declaration) >>
         o: opcode_parser >>
-        r1: register >>
-        r2: register >>
-        r3: register >>
+        o1: opt!(operand) >>
+        o2: opt!(operand) >>
+        o3: opt!(operand) >>
         (
             AssemblerInstruction {
-                opcode: o,
-                operand1:Some(r1),
-                operand2:Some(r2),
-                operand3:Some(r3),
+                opcode: Some(o),
+                label: l,
+                directive: None,
+                operand1: o1,
+                operand2: o2,
+                operand3: o3,
             }
         )
     )
@@ -92,10 +143,9 @@ named!(pub instruction_three<CompleteStr, AssemblerInstruction>,
 named!(pub instruction<CompleteStr, AssemblerInstruction>,
     do_parse!(
         ins: alt! (
-            instruction_three |
-            instruction_two   |
-            instruction_one
-        ) >> 
+            instruction_combined |
+            directive
+        ) >>
         (
             ins
         )
@@ -158,101 +208,50 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_instruction_form_one() {
-        let result = instruction_one(CompleteStr("hlt\n"));
-        assert_eq!(
-            result,
-            Ok((
-                CompleteStr(""),
-                AssemblerInstruction {
-                    opcode: Token::Op { code: Opcode::HLT },
-                    operand1: None,
-                    operand2: None,
-                    operand3: None
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn test_parse_instruction_form_two() {
-        let result = instruction_two(CompleteStr("load $0 #12345\n"));
-        assert_eq!(
-            result,
-            Ok((
-                CompleteStr(""),
-                AssemblerInstruction {
-                    opcode: Token::Op { code: Opcode::LOAD },
-                    operand1: Some(Token::Register { reg_num: 0 }),
-                    operand2: Some(Token::IntegerOperand { value: 12345 }),
-                    operand3: None
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn test_parse_instruction_form_three() {
-        let result = instruction_three(CompleteStr("add $0 $1 $2\n"));
-        assert_eq!(
-            result,
-            Ok((
-                CompleteStr(""),
-                AssemblerInstruction {
-                    opcode: Token::Op { code: Opcode::ADD },
-                    operand1: Some(Token::Register { reg_num: 0 }),
-                    operand2: Some(Token::Register { reg_num: 1 }),
-                    operand3: Some(Token::Register { reg_num: 2 }),
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn test_parse_instruction() {
+    fn test_parse_pure_instruction() {
         // one opcode instruction
         let result = instruction(CompleteStr("hlt\n"));
+        let (_, ins) = result.unwrap();
         assert_eq!(
-            result,
-            Ok((
-                CompleteStr(""),
-                AssemblerInstruction {
-                    opcode: Token::Op { code: Opcode::HLT },
-                    operand1: None,
-                    operand2: None,
-                    operand3: None
-                }
-            ))
+            ins,
+            AssemblerInstruction {
+                opcode: Some(Token::Op { code: Opcode::HLT }),
+                label: None,
+                directive: None,
+                operand1: None,
+                operand2: None,
+                operand3: None
+            }
         );
 
         // two registers instruction
         let result = instruction(CompleteStr("load $0 #12345\n"));
+        let (_, ins) = result.unwrap();
         assert_eq!(
-            result,
-            Ok((
-                CompleteStr(""),
-                AssemblerInstruction {
-                    opcode: Token::Op { code: Opcode::LOAD },
-                    operand1: Some(Token::Register { reg_num: 0 }),
-                    operand2: Some(Token::IntegerOperand { value: 12345 }),
-                    operand3: None
-                }
-            ))
+            ins,
+            AssemblerInstruction {
+                opcode: Some(Token::Op { code: Opcode::LOAD }),
+                label: None,
+                directive: None,
+                operand1: Some(Token::Register { reg_num: 0 }),
+                operand2: Some(Token::IntegerOperand { value: 12345 }),
+                operand3: None
+            }
         );
 
         // three registers instruction
         let result = instruction(CompleteStr("add $0 $1 $2\n"));
+        let (_, ins) = result.unwrap();
         assert_eq!(
-            result,
-            Ok((
-                CompleteStr(""),
-                AssemblerInstruction {
-                    opcode: Token::Op { code: Opcode::ADD },
-                    operand1: Some(Token::Register { reg_num: 0 }),
-                    operand2: Some(Token::Register { reg_num: 1 }),
-                    operand3: Some(Token::Register { reg_num: 2 }),
-                }
-            ))
+            ins,
+            AssemblerInstruction {
+                opcode: Some(Token::Op { code: Opcode::ADD }),
+                label: None,
+                directive: None,
+                operand1: Some(Token::Register { reg_num: 0 }),
+                operand2: Some(Token::Register { reg_num: 1 }),
+                operand3: Some(Token::Register { reg_num: 2 }),
+            }
         );
     }
 
@@ -267,17 +266,116 @@ mod tests {
         // TODO: Figure out an ergonomic way to test the AssemblerInstruction returned
     }
 
+    // #[test]
+    // fn test_program_to_bytes() {
+    //     let result = program(CompleteStr("load $2 #12345\n"));
+    //     assert_eq!(result.is_ok(), true);
+    //     let (_, program) = result.unwrap();
+    //     let bytecode = program.to_bytes();
+    //     // println!("{:?}", bytecode);
+    //     assert_eq!(bytecode.len(), 4);
+    //     assert_eq!(bytecode[0], Opcode::LOAD.into());
+    //     assert_eq!(bytecode[1], 2);
+    //     let num = ((bytecode[2] as i32) << 8) + (bytecode[3] as i32);
+    //     assert_eq!(num, 12345);
+    // }
+
     #[test]
-    fn test_program_to_bytes() {
-        let result = program(CompleteStr("load $2 #12345\n"));
-        assert_eq!(result.is_ok(), true);
-        let (_, program) = result.unwrap();
-        let bytecode = program.to_bytes();
-        // println!("{:?}", bytecode);
-        assert_eq!(bytecode.len(), 4);
-        assert_eq!(bytecode[0], Opcode::LOAD.into());
-        assert_eq!(bytecode[1], 2);
-        let num = ((bytecode[2] as i32) << 8) + (bytecode[3] as i32);
-        assert_eq!(num, 12345);
+    fn test_parse_directive_instruction() {
+        // three registers instruction
+        let result = instruction(CompleteStr(".data\n"));
+        let (_, ins) = result.unwrap();
+        assert_eq!(
+            ins,
+            AssemblerInstruction {
+                opcode: None,
+                label: None,
+                directive: Some(Token::Directive {
+                    name: "data".to_string()
+                }),
+                operand1: None,
+                operand2: None,
+                operand3: None,
+            }
+        );
+    }
+
+    // #[test]
+    // fn test_string_directive() {
+    //     let result = directive_combined(CompleteStr("test: .asciiz 'Hello'"));
+    //     assert_eq!(result.is_ok(), true);
+    //     let (_, directive) = result.unwrap();
+
+    //     // Yes, this is the what the result should be
+    //     let correct_instruction = AssemblerInstruction {
+    //         opcode: None,
+    //         label: Some(Token::LabelDeclaration {
+    //             name: "test".to_string(),
+    //         }),
+    //         directive: Some(Token::Directive {
+    //             name: "asciiz".to_string(),
+    //         }),
+    //         operand1: Some(Token::IrString {
+    //             name: "Hello".to_string(),
+    //         }),
+    //         operand2: None,
+    //         operand3: None,
+    //     };
+
+    //     assert_eq!(directive, correct_instruction);
+    // }
+
+    #[test]
+    fn test_parse_label_declaration_instruction() {
+        // three registers instruction
+        let result = instruction(CompleteStr("test: LOAD $1 #12345\n"));
+        let (_, ins) = result.unwrap();
+        assert_eq!(
+            ins,
+            AssemblerInstruction {
+                opcode: Some(Token::Op { code: Opcode::LOAD }),
+                label: Some(Token::LabelDeclaration {
+                    name: "test".to_string()
+                }),
+                directive: None,
+                operand1: Some(Token::Register { reg_num: 1 }),
+                operand2: Some(Token::IntegerOperand { value: 12345 }),
+                operand3: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_label_usage() {
+        let result = label_usage(CompleteStr("@test"));
+        let (_, token) = result.unwrap();
+        assert_eq!(
+            token,
+            Token::LabelUsage {
+                name: "test".to_string()
+            }
+        );
+        let result = label_usage(CompleteStr("test"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_label_usage_instruction() {
+        // three registers instruction
+        let result = instruction(CompleteStr("jmp @test1\n"));
+        let (_, ins) = result.unwrap();
+        assert_eq!(
+            ins,
+            AssemblerInstruction {
+                opcode: Some(Token::Op { code: Opcode::JMP }),
+                label: None,
+                directive: None,
+                operand1: Some(Token::LabelUsage {
+                    name: "test1".to_string()
+                }),
+                operand2: None,
+                operand3: None,
+            }
+        );
     }
 }

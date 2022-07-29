@@ -37,6 +37,10 @@ impl VM {
         result
     }
 
+    pub fn add_bytes(&mut self, mut bytes: Vec<u8>) {
+        self.program.append(bytes.as_mut());
+    }
+
     pub fn run(&mut self) {
         let mut no_err = true;
         while no_err {
@@ -45,7 +49,7 @@ impl VM {
     }
 
     fn decode_opcode(&mut self) -> Opcode {
-        assert!(self.pc % 4 == 0);  // sanity check
+        assert!(self.pc % 4 == 0); // sanity check
         let opcode = Opcode::from(self.program[self.pc]);
         self.pc += 1;
         opcode
@@ -188,6 +192,18 @@ impl VM {
     #[allow(dead_code)]
     fn pc_valid(&self) -> bool {
         self.pc % 4 == 0
+    }
+
+    pub fn dbg_vm(&self) {
+        println!("pc: {}", self.pc);
+        println!("Total instruction num: {}", self.program.len());
+        println!("Registers:");
+        for i in 0..4 {
+            for j in 0..8 {
+                print!("{:3} ", self.program[i * 4 + j]);
+            }
+            println!();
+        }
     }
 }
 

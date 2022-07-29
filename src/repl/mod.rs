@@ -1,11 +1,9 @@
-use crate::assembler::asm_parsers::*;
+use crate::assembler::Assembler;
 use crate::vm::VM;
 use std;
 use std::io;
 use std::io::Write;
 use std::num::ParseIntError;
-
-use nom::types::CompleteStr;
 
 /// Core structure for the REPL for the Assembler
 pub struct REPL {
@@ -68,17 +66,16 @@ impl REPL {
                     println!("End of Register Listing")
                 }
                 ".debug" => {
-                    println!("pc: {}", self.vm.pc);
-                    println!("Total instruction num: {}", self.vm.program.len());
-                    println!("{:#?}", self.vm.program);
+                    self.vm.dbg_vm();
                 }
                 _ => {
-                    let parsed_program = program(CompleteStr(buffer));
+                    let mut asm = Assembler::new();
+                    let parsed_program = asm.assemble(buffer);
                     match parsed_program {
-                        Ok((_, result)) => {
-                            self.vm.program.append(&mut result.to_bytes());
+                        Some(mut result) => {
+                            self.vm.program.append(result.as_mut());
                         }
-                        Err(_e) => {
+                        None => {
                             println!("Unable to parse input");
                         }
                     }
