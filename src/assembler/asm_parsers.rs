@@ -266,19 +266,18 @@ mod tests {
         // TODO: Figure out an ergonomic way to test the AssemblerInstruction returned
     }
 
-    // #[test]
-    // fn test_program_to_bytes() {
-    //     let result = program(CompleteStr("load $2 #12345\n"));
-    //     assert_eq!(result.is_ok(), true);
-    //     let (_, program) = result.unwrap();
-    //     let bytecode = program.to_bytes();
-    //     // println!("{:?}", bytecode);
-    //     assert_eq!(bytecode.len(), 4);
-    //     assert_eq!(bytecode[0], Opcode::LOAD.into());
-    //     assert_eq!(bytecode[1], 2);
-    //     let num = ((bytecode[2] as i32) << 8) + (bytecode[3] as i32);
-    //     assert_eq!(num, 12345);
-    // }
+    #[test]
+    fn test_program_to_bytes() {
+        use crate::assembler::Assembler;
+        let mut asm = Assembler::new();
+        let bytecode = asm.assemble("load $2 #12345\n").unwrap();
+        // println!("{:?}", bytecode);
+        assert_eq!(bytecode.len(), 4);
+        assert_eq!(bytecode[0], Opcode::LOAD.into());
+        assert_eq!(bytecode[1], 2);
+        let num = ((bytecode[2] as i32) << 8) + (bytecode[3] as i32);
+        assert_eq!(num, 12345);
+    }
 
     #[test]
     fn test_parse_directive_instruction() {

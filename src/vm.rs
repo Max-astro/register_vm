@@ -49,7 +49,10 @@ impl VM {
     }
 
     fn decode_opcode(&mut self) -> Opcode {
-        assert!(self.pc % 4 == 0); // sanity check
+        if self.pc % 4 != 0 {
+            self.dbg_vm();
+            panic!("Executtion error: pc % 4 != 0"); // sanity check
+        }
         let opcode = Opcode::from(self.program[self.pc]);
         self.pc += 1;
         opcode
@@ -150,18 +153,21 @@ impl VM {
                 self.equal_flag = self.registers[r0] <= self.registers[r1];
                 self.next_8_bits();
             }
-            Opcode::JEQ => {
-                let register = self.next_8_bits() as usize;
-                let target = self.registers[register];
+            Opcode::JEQD => {
+                let target = self.next_16_bits();
                 if self.equal_flag {
                     self.pc = target as usize;
+                } else {
+                    self.next_8_bits();
                 }
             }
-            Opcode::JNEQ => {
+            Opcode::JEQ => {
                 let register = self.next_8_bits() as usize;
-                let target = self.registers[register];
+                let offset = self.registers[register] as usize;
                 if !self.equal_flag {
-                    self.pc = target as usize;
+                    self.pc = offset;
+                } else {
+                    self.next_16_bits();
                 }
             }
             Opcode::ALOC => {
@@ -194,13 +200,28 @@ impl VM {
         self.pc % 4 == 0
     }
 
+    pub fn dbg_program(&self) {
+        println!("Instructions: ");
+        let len = self.program.len();
+        for i in 0..len / 4 {
+            println!(
+                "{:6?} {:4} {:4} {:4}",
+                Opcode::from(self.program[i*4]),
+                self.program[i*4 + 1],
+                self.program[i*4 + 2],
+                self.program[i*4 + 3]
+            );
+        }
+        println!("-------- end --------\n");
+    }
+
     pub fn dbg_vm(&self) {
         println!("pc: {}", self.pc);
         println!("Total instruction num: {}", self.program.len());
         println!("Registers:");
         for i in 0..4 {
             for j in 0..8 {
-                print!("{:3} ", self.program[i * 4 + j]);
+                print!("{:3} ", self.registers[i * 4 + j]);
             }
             println!();
         }
@@ -344,16 +365,21 @@ mod tests {
     }
 
     #[test]
-    fn test_jeq_opcode() {
+    fn test_jeqd_opcode() {
         let mut test_vm = get_test_vm();
         test_vm.registers[0] = 4;
         test_vm.equal_flag = true;
-        test_vm.program = vec![Opcode::JEQ.into(), 0, 0, 0, Opcode::JNEQ.into(), 0, 0, 0];
+        test_vm.program = vec![Opcode::JEQ.into(), 0, 0, 0, Opcode::JEQD.into(), 8, 10, 0, Opcode::JEQD.into(), 0, 16, 0];
         test_vm.run_once();
         assert_eq!(test_vm.pc, 4);
+
         test_vm.equal_flag = false;
         test_vm.run_once();
-        assert_eq!(test_vm.pc, 4);
+        assert_eq!(test_vm.pc, 8);
+
+        test_vm.equal_flag = true;
+        test_vm.run_once();
+        assert_eq!(test_vm.pc, 16);
     }
 
     #[test]

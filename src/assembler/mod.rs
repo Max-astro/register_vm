@@ -65,12 +65,12 @@ impl AssemblerInstruction {
                 }
                 Some(Token::LabelUsage { name }) => {
                     let offset = symbol_tbl.symbol_value(name);
-                    if let Some(value) = offset {
-                        let upper = ((0xFF00 & value) >> 8) as u8;
-                        let lower = (0xFF & value) as u8;
-                        result.push(upper);
-                        result.push(lower);
-                    }
+                    let offset = offset
+                        .unwrap_or_else(|| panic!("LabelUsage token has no offset: `{:?}`", self));
+                    let upper = ((0xFF00 & offset) >> 8) as u8;
+                    let lower = (0xFF & offset) as u8;
+                    result.push(upper);
+                    result.push(lower);
                 }
                 Some(Token::Op { code: _ }) => {
                     panic!(
@@ -154,10 +154,9 @@ impl Assembler {
         self.program.as_ref()
     }
 
-    #[allow(unused_assignments)]
     fn extract_labels(&mut self, p: &Program) {
+        let mut pos = 0;
         for ins in p.instructions.iter() {
-            let mut pos = 0;
             match &ins.label {
                 Some(Token::LabelDeclaration { name }) => {
                     let symbel = Symbol::new(name.clone(), pos, SymbolType::Label);
@@ -254,16 +253,12 @@ mod tests {
     #[test]
     fn test_assemble_program() {
         let mut asm = Assembler::new();
-        let test_string = "load $0 #100\ntest: inc $2\nneq $0 $2\njeq @test\nhlt";
+        let test_string = "load $0 #100\ntest: inc $2\nneq $0 $2\njeqd @test\nhlt";
         let program = asm.assemble(test_string).unwrap();
         assert_eq!(program.len(), 20);
 
         let prog = asm.get_assembled_program().unwrap();
         let instructions = &prog.instructions;
-
-        // for ins in instructions.iter() {
-        //     println!("{:?}\n", ins);
-        // }
 
         assert_eq!(
             instructions[0],
@@ -306,7 +301,7 @@ mod tests {
         assert_eq!(
             instructions[3],
             AssemblerInstruction {
-                opcode: Some(Token::Op { code: Opcode::JEQ }),
+                opcode: Some(Token::Op { code: Opcode::JEQD }),
                 label: None,
                 directive: None,
                 operand1: Some(Token::LabelUsage {
@@ -333,7 +328,7 @@ mod tests {
         let mut vm = VM::new();
         vm.add_bytes(program);
         vm.run();
-        vm.dbg_vm();
-        // assert_eq!(vm.pc, 21);
+        assert_eq!(vm.pc, 17);
+        assert_eq!(vm.registers[0], vm.registers[2]);
     }
 }

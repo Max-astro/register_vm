@@ -17,8 +17,8 @@ pub enum Opcode {
     LT,
     GTE, // greater than OR equal to
     LTE, // less than OR equal to
+    JEQD,
     JEQ,
-    JNEQ,
     IGL,
     NOP,
     ALOC,
@@ -44,8 +44,8 @@ impl From<u8> for Opcode {
             12 => Opcode::LT,
             13 => Opcode::GTE,
             14 => Opcode::LTE,
-            15 => Opcode::JEQ,
-            16 => Opcode::JNEQ,
+            15 => Opcode::JEQD,
+            16 => Opcode::JEQ,
             17 => Opcode::NOP,
             18 => Opcode::ALOC,
             19 => Opcode::INC,
@@ -73,8 +73,8 @@ impl Into<u8> for &Opcode {
             Opcode::LT => 12,
             Opcode::GTE => 13,
             Opcode::LTE => 14,
-            Opcode::JEQ => 15,
-            Opcode::JNEQ => 16,
+            Opcode::JEQD => 15,
+            Opcode::JEQ => 16,
             Opcode::NOP => 17,
             Opcode::ALOC => 18,
             Opcode::INC => 19,
@@ -110,9 +110,10 @@ impl<'a> From<CompleteStr<'a>> for Opcode {
             CompleteStr("inc") | CompleteStr("INC") => Opcode::INC,
             CompleteStr("dec") | CompleteStr("DEC") => Opcode::DEC,
             CompleteStr("load") | CompleteStr("LOAD") => Opcode::LOAD,
+            CompleteStr("aloc") | CompleteStr("ALOC") => Opcode::ALOC,
             CompleteStr("jmpf") | CompleteStr("JMPF") => Opcode::JMPF,
             CompleteStr("jmpb") | CompleteStr("JMPB") => Opcode::JMPB,
-            CompleteStr("aloc") | CompleteStr("ALOC") => Opcode::ALOC,
+            CompleteStr("jeqd") | CompleteStr("JEQD") => Opcode::JEQD,
             _ => Opcode::IGL,
         }
     }
