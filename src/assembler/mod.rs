@@ -5,6 +5,10 @@ use nom::types::CompleteStr;
 use crate::assembler::asm_parsers::program;
 use crate::instruction::Opcode;
 
+// PIE Magic numbers
+pub const PIE_HEADER_PREFIX: [u8; 4] = [45, 50, 49, 45];
+pub const PIE_HEADER_LENGTH: usize = 64;
+
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Op { code: Opcode },
@@ -106,13 +110,6 @@ pub struct Program {
     instructions: Vec<AssemblerInstruction>,
 }
 
-// impl Program {
-//     pub fn to_bytes(&self) -> Vec<u8> {
-//         let mut asmbler = Assembler::new();
-
-//     }
-// }
-
 #[derive(Debug)]
 pub enum AssemblerPhase {
     First,
@@ -138,10 +135,13 @@ impl Assembler {
     pub fn assemble(&mut self, raw: &str) -> Option<Vec<u8>> {
         match program(CompleteStr(raw)) {
             Ok((_rem, program)) => {
+                let mut assembled_program = self.write_pie_header();
                 self.process_first_phase(&program);
-                let ret = Some(self.process_second_phase(&program));
+                let mut body = self.process_second_phase(&program);
+
                 self.program = Some(program);
-                ret
+                assembled_program.append(&mut body);
+                Some(assembled_program)
             }
             Err(e) => {
                 println!("There was an error assembling the code: {:?}", e);
@@ -180,6 +180,18 @@ impl Assembler {
             program.append(&mut bytes);
         }
         program
+    }
+
+    fn write_pie_header(&self) -> Vec<u8> {
+        let mut header = vec![];
+        for byte in PIE_HEADER_PREFIX {
+            header.push(byte);
+        }
+
+        while header.len() < PIE_HEADER_LENGTH {
+            header.push(0);
+        }
+        header
     }
 }
 
@@ -255,6 +267,7 @@ mod tests {
         let mut asm = Assembler::new();
         let test_string = "load $0 #100\ntest: inc $2\nneq $0 $2\njeqd @test\nhlt";
         let program = asm.assemble(test_string).unwrap();
+        let program = program[64..].to_vec();   // trim PIE header
         assert_eq!(program.len(), 20);
 
         let prog = asm.get_assembled_program().unwrap();

@@ -1,4 +1,5 @@
 use crate::instruction::Opcode;
+use crate::assembler::PIE_HEADER_PREFIX;
 
 pub struct VM {
     pub registers: [i32; 32],
@@ -19,6 +20,10 @@ impl VM {
             equal_flag: false,
             heap: vec![],
         }
+    }
+
+    fn verify_header(&self) ->bool {
+        self.program[0..4] == PIE_HEADER_PREFIX
     }
 
     pub fn add_byte(&mut self, v: u8) {

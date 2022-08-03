@@ -268,14 +268,15 @@ mod tests {
 
     #[test]
     fn test_program_to_bytes() {
-        use crate::assembler::Assembler;
+        use crate::assembler::{Assembler, PIE_HEADER_LENGTH};
         let mut asm = Assembler::new();
         let bytecode = asm.assemble("load $2 #12345\n").unwrap();
         // println!("{:?}", bytecode);
-        assert_eq!(bytecode.len(), 4);
-        assert_eq!(bytecode[0], Opcode::LOAD.into());
-        assert_eq!(bytecode[1], 2);
-        let num = ((bytecode[2] as i32) << 8) + (bytecode[3] as i32);
+        assert_eq!(bytecode.len(), PIE_HEADER_LENGTH + 4);
+        assert_eq!(bytecode[PIE_HEADER_LENGTH], Opcode::LOAD.into());
+        assert_eq!(bytecode[PIE_HEADER_LENGTH + 1], 2);
+        let num = ((bytecode[PIE_HEADER_LENGTH + 2] as i32) << 8)
+            + (bytecode[PIE_HEADER_LENGTH + 3] as i32);
         assert_eq!(num, 12345);
     }
 
